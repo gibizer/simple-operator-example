@@ -1,0 +1,5 @@
+apiVersion: test.test.org/v1beta1
+kind: Simple
+metadata:
+  name: simple-sample
+# spec only has a single field and it is defaulted
