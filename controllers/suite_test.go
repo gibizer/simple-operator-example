@@ -204,10 +204,10 @@ var _ = Describe("Simple controller", func() {
 	})
 
 	It("...", func() {
-		Eventually(func(g Gomega) {
-			instance := GetSimple(simpleName)
-			logger.Info("Read", "Pair", instance.Spec.Pair)
-		}, timeout, interval).Should(Succeed())
+		// Eventually(func(g Gomega) {
+		// 	instance := GetSimple(simpleName)
+		// 	logger.Info("Read", "Pairs", instance.Spec.Pairs)
+		// }, timeout, interval).Should(Succeed())
 
 		Fail("!!!")
 	})

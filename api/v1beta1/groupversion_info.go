@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1beta1 contains API Schema definitions for the test v1beta1 API group
-//+kubebuilder:object:generate=true
-//+groupName=test.test.org
+// +kubebuilder:object:generate=true
+// +groupName=test.test.org
 package v1beta1
 
 import (

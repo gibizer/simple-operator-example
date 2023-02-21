@@ -35,15 +35,21 @@ spec:
           spec:
             description: SimpleSpec defines the desired state of Simple
             properties:
-              pair:
-                properties:
-                  one:
-                    default: Example1
-                    type: string
-                  two:
-                    default: Example2
-                    type: string
-                type: object
+              complexSlice:
+                items:
+                  properties:
+                    one:
+                      default: Example1
+                      type: string
+                    two:
+                      default: Example2
+                      type: string
+                  type: object
+                type: array
+              simpleSlice:
+                items:
+                  type: string
+                type: array
             type: object
           status:
             description: SimpleStatus defines the observed state of Simple

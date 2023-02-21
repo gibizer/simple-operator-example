@@ -29,7 +29,11 @@ type SimpleSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// +kubebuilder:validation:Optional
-	Pair Pair `json:"pair,omitempty"`
+	// +kubebuilder:default={}
+	SimpleSlice []string `json:"simpleSlice"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default={}
+	ComplexSlice []Pair `json:"complexSlice"`
 }
 
 // SimpleStatus defines the observed state of Simple

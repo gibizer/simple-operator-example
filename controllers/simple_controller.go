@@ -56,7 +56,7 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 		return ctrl.Result{}, nil
 	}
 
-	l.Info("Reconciling", "Spec.Pair", instance.Spec.Pair)
+	l.Info("Reconciling", "Spec.SimpleSlice", instance.Spec.SimpleSlice, "Spec.ComplexSlice", instance.Spec.ComplexSlice)
 
 	return ctrl.Result{}, nil
 }
