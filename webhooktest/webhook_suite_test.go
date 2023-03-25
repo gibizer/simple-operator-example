@@ -14,48 +14,59 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package webhooktest
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
+	"net"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
+	"github.com/gibizer/test-operator/controllers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/types"
+	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
+
+	//+kubebuilder:scaffold:imports
+
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
-	//+kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-func TestAPIs(t *testing.T) {
+func TestWebhooks(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Controller Suite")
+	RunSpecs(t, "Webhook Suite")
 }
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logger = ctrl.Log.WithName("---Test---")
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
+	logger.Info("creating environment")
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
+		WebhookInstallOptions: envtest.WebhookInstallOptions{
+			Paths: []string{filepath.Join("..", "config", "webhook")},
+		},
 	}
+	logger.Info("environment created")
 
 	var err error
 	// cfg is defined in this file globally.
@@ -63,7 +74,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
+	//scheme := runtime.NewScheme()
 	err = testv1beta1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = admissionv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -71,6 +86,29 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	// start webhook server using Manager
+	webhookInstallOptions := &testEnv.WebhookInstallOptions
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:             scheme.Scheme,
+		Host:               webhookInstallOptions.LocalServingHost,
+		Port:               webhookInstallOptions.LocalServingPort,
+		CertDir:            webhookInstallOptions.LocalServingCertDir,
+		LeaderElection:     false,
+		MetricsBindAddress: "0",
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&testv1beta1.Simple{}).SetupWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
+	//+kubebuilder:scaffold:webhook
+
+	go func() {
+		defer GinkgoRecover()
+		err = mgr.Start(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}()
 
 	// Start the controller-manager in a goroutine
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -82,13 +120,11 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&SimpleReconciler{
+	err = (&controllers.SimpleReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
-
-	logger = ctrl.Log.WithName("---Test---")
 
 	go func() {
 		defer GinkgoRecover()
@@ -96,25 +132,37 @@ var _ = BeforeSuite(func() {
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
 
+	// wait for the webhook server to get ready
+	dialer := &net.Dialer{Timeout: time.Second}
+	addrPort := fmt.Sprintf("%s:%d", webhookInstallOptions.LocalServingHost, webhookInstallOptions.LocalServingPort)
+	Eventually(func() error {
+		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
+		if err != nil {
+			return err
+		}
+		conn.Close()
+		return nil
+	}).Should(Succeed())
+
 })
 
 var _ = AfterSuite(func() {
-	By("tearing down the test environment")
 	cancel()
+	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
 
-var _ = Describe("Simple controller", func() {
-	var namespace string
+var _ = Describe("Simple webhook", func() {
+	//var namespace string
 	var simpleName types.NamespacedName
 
 	BeforeEach(func() {
-		namespace = uuid.New().String()
-		CreateNamespace(namespace)
-		DeferCleanup(DeleteNamespace, namespace)
+		//namespace = uuid.New().String()
+		//CreateNamespace(namespace)
+		DeferCleanup(DeleteNamespace, "default")
 
-		simpleName = CreateSimple(namespace)
+		simpleName = CreateSimple("default")
 		DeferCleanup(DeleteSimple, simpleName)
 	})
 
@@ -123,8 +171,8 @@ var _ = Describe("Simple controller", func() {
 		// 	instance := GetSimple(simpleName)
 		// 	logger.Info("Read", "Pairs", instance.Spec.Pairs)
 		// }, timeout, interval).Should(Succeed())
-
 		time.Sleep(time.Duration(5) * time.Second)
+
 		Fail("!!!")
 	})
 })

@@ -52,7 +52,7 @@ func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res
 	instance := &testv1beta1.Simple{}
 	err = r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
-		l.Info("Failed to read instance, probably deleted. Nothing to do.")
+		l.Error(err, "Failed to read instance, probably deleted. Nothing to do.")
 		return ctrl.Result{}, nil
 	}
 
