@@ -220,30 +220,3 @@ func ExpectSimpleStatusDivisonByZero(simpleName types.NamespacedName) {
 		g.Expect(simple.Status.Conditions[0].Message).To(ContainSubstring("division by zero"))
 	}, timeout, interval).Should(Succeed())
 }
-
-var _ = Describe("Simple controller", func() {
-	var namespace string
-
-	BeforeEach(func() {
-		namespace = uuid.New().String()
-		CreateNamespace(namespace)
-		DeferCleanup(DeleteNamespace, namespace)
-	})
-
-	It("Divides", func() {
-		simpleName := CreateSimple(namespace, testv1.SimpleSpec{Divident: 10, Divisor: 5})
-		DeferCleanup(DeleteSimple, simpleName)
-
-		ExpectSimpleStatusReady(simpleName)
-
-		simple := GetSimple(simpleName)
-		Expect(*simple.Status.Quotient).To(Equal(2))
-		Expect(*simple.Status.Remainder).To(Equal(0))
-	})
-	It("Failes to divide with zero", func() {
-		simpleName := CreateSimple(namespace, testv1.SimpleSpec{Divident: 10, Divisor: 0})
-		DeferCleanup(DeleteSimple, simpleName)
-
-		ExpectSimpleStatusDivisonByZero(simpleName)
-	})
-})
