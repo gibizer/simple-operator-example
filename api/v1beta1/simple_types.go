@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,30 +26,25 @@ import (
 
 // SimpleSpec defines the desired state of Simple
 type SimpleSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Required
+	// Divident
+	Divident int `json:"divident"`
 
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default={}
-	SimpleSlice []string `json:"simpleSlice"`
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default={}
-	ComplexSlice []Pair `json:"complexSlice"`
+	// +kubebuilder:validation:Required
+	// Divisor
+	Divisor int `json:"divisor"`
 }
 
 // SimpleStatus defines the observed state of Simple
 type SimpleStatus struct {
-}
+	// Conditions
+	Conditions condition.Conditions `json:"conditions,omitempty" optional:"true"`
 
-type Pair struct {
+	// Quotient
+	Quotient *int `json:"quotient,omitempty" optional:"true"`
 
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="Example1"
-	One string `json:"one,omitempty"`
-
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default="Example2"
-	Two string `json:"two,omitempty"`
+	// Remainder
+	Remainder *int `json:"remainder,omitempty" optional:"true"`
 }
 
 //+kubebuilder:object:root=true

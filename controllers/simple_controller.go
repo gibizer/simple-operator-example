@@ -18,13 +18,14 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 )
 
 // SimpleReconciler reconciles a Simple object
@@ -39,26 +40,15 @@ type SimpleReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Simple object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	l := log.FromContext(ctx)
-
-	instance := &testv1beta1.Simple{}
-	err = r.Client.Get(ctx, req.NamespacedName, instance)
-	if err != nil {
-		l.Info("Failed to read instance, probably deleted. Nothing to do.")
-		return ctrl.Result{}, nil
-	}
-
-	l.Info("Reconciling", "Spec.SimpleSlice", instance.Spec.SimpleSlice, "Spec.ComplexSlice", instance.Spec.ComplexSlice)
-
-	return ctrl.Result{}, nil
+	return NewReconcileReqHandler(
+		ctx, req, r.Client, &testv1beta1.Simple{},
+		[]Step[*testv1beta1.Simple, ReconcileReq[*testv1beta1.Simple]]{
+			{Name: "Init status", Do: initStatus},
+			{Name: "Ensure non-zero divisor", Do: ensureNonZeroDivisor},
+			{Name: "Divide", Do: divide},
+		},
+	)()
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -66,4 +56,26 @@ func (r *SimpleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&testv1beta1.Simple{}).
 		Complete(r)
+}
+
+func initStatus(r *ReconcileReq[*testv1beta1.Simple]) Result {
+	r.Instance.Status.Conditions.Init(&condition.Conditions{})
+	return r.ok()
+}
+
+func ensureNonZeroDivisor(r *ReconcileReq[*testv1beta1.Simple]) Result {
+	if r.Instance.Spec.Divisor == 0 {
+		r.Instance.Status.Conditions.MarkFalse(condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, "division by zero")
+		return r.error(fmt.Errorf("division by zero"))
+	}
+	return r.ok()
+}
+
+func divide(r *ReconcileReq[*testv1beta1.Simple]) Result {
+	quotient := r.Instance.Spec.Divident / r.Instance.Spec.Divisor
+	remainder := r.Instance.Spec.Divident % r.Instance.Spec.Divisor
+	r.Instance.Status.Quotient = &quotient
+	r.Instance.Status.Remainder = &remainder
+	r.Instance.Status.Conditions.MarkTrue(condition.ReadyCondition, "calculation done")
+	return r.ok()
 }

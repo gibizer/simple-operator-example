@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,7 +40,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
+	testv1 "github.com/gibizer/test-operator/api/v1beta1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -47,8 +48,9 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 const (
-	interval = time.Duration(10) * time.Millisecond
-	timeout  = interval * 15
+	timeout = 10 * time.Second
+	// have maximum 100 retries before the timeout hits
+	interval = timeout / 100
 )
 
 var (
@@ -82,7 +84,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = testv1beta1.AddToScheme(scheme.Scheme)
+	err = testv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -102,6 +104,12 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&SimpleReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&ServiceWithDBReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)
@@ -142,9 +150,9 @@ func DeleteNamespace(name string) {
 	Expect(k8sClient.Delete(ctx, ns)).Should(Succeed())
 }
 
-func CreateSimple(namespace string) types.NamespacedName {
+func CreateSimple(namespace string, spec testv1.SimpleSpec) types.NamespacedName {
 	name := uuid.New().String()
-	instance := &testv1beta1.Simple{
+	instance := &testv1.Simple{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "test.test.org/v1beta1",
 			Kind:       "Simple",
@@ -153,7 +161,7 @@ func CreateSimple(namespace string) types.NamespacedName {
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: testv1beta1.SimpleSpec{},
+		Spec: spec,
 	}
 
 	Expect(k8sClient.Create(ctx, instance)).Should(Succeed())
@@ -163,8 +171,9 @@ func CreateSimple(namespace string) types.NamespacedName {
 }
 
 func DeleteSimple(name types.NamespacedName) {
+	logger.Info("Deleting")
 	Eventually(func(g Gomega) {
-		instance := &testv1beta1.Simple{}
+		instance := &testv1.Simple{}
 		err := k8sClient.Get(ctx, name, instance)
 		// if it is already gone that is OK
 		if k8s_errors.IsNotFound(err) {
@@ -180,35 +189,61 @@ func DeleteSimple(name types.NamespacedName) {
 	logger.Info("Deleted")
 }
 
-func GetSimple(name types.NamespacedName) *testv1beta1.Simple {
-	instance := &testv1beta1.Simple{}
+func GetSimple(name types.NamespacedName) *testv1.Simple {
+	instance := &testv1.Simple{}
 	Eventually(func(g Gomega) {
-		logger.Info("Try get")
+		logger.Info("Try get", "simple", name)
 		g.Expect(k8sClient.Get(ctx, name, instance)).Should(Succeed())
 	}, timeout, interval).Should(Succeed())
-	logger.Info("Get")
+	logger.Info("Got", "simple", instance)
 	return instance
+}
+
+func ExpectSimpleStatusReady(simpleName types.NamespacedName) {
+	Eventually(func(g Gomega) {
+		simple := GetSimple(simpleName)
+		g.Expect(simple.Status.Conditions).NotTo(BeNil())
+		g.Expect(simple.Status.Conditions[0].Type).To(Equal(condition.ReadyCondition))
+		g.Expect(simple.Status.Conditions[0].Status).To(Equal(corev1.ConditionTrue))
+	}, timeout, interval).Should(Succeed())
+
+}
+
+func ExpectSimpleStatusDivisonByZero(simpleName types.NamespacedName) {
+	Eventually(func(g Gomega) {
+		simple := GetSimple(simpleName)
+		g.Expect(simple.Status.Conditions).NotTo(BeNil())
+		g.Expect(simple.Status.Conditions[0].Type).To(Equal(condition.ReadyCondition))
+		g.Expect(simple.Status.Conditions[0].Status).To(Equal(corev1.ConditionFalse))
+		g.Expect(simple.Status.Conditions[0].Severity).To(Equal(condition.SeverityError))
+		g.Expect(simple.Status.Conditions[0].Reason).To(BeEquivalentTo(condition.ErrorReason))
+		g.Expect(simple.Status.Conditions[0].Message).To(ContainSubstring("division by zero"))
+	}, timeout, interval).Should(Succeed())
 }
 
 var _ = Describe("Simple controller", func() {
 	var namespace string
-	var simpleName types.NamespacedName
 
 	BeforeEach(func() {
 		namespace = uuid.New().String()
 		CreateNamespace(namespace)
 		DeferCleanup(DeleteNamespace, namespace)
-
-		simpleName = CreateSimple(namespace)
-		DeferCleanup(DeleteSimple, simpleName)
 	})
 
-	It("...", func() {
-		// Eventually(func(g Gomega) {
-		// 	instance := GetSimple(simpleName)
-		// 	logger.Info("Read", "Pairs", instance.Spec.Pairs)
-		// }, timeout, interval).Should(Succeed())
+	It("Divides", func() {
+		simpleName := CreateSimple(namespace, testv1.SimpleSpec{Divident: 10, Divisor: 5})
+		DeferCleanup(DeleteSimple, simpleName)
 
-		Fail("!!!")
+		ExpectSimpleStatusReady(simpleName)
+
+		simple := GetSimple(simpleName)
+		Expect(*simple.Status.Quotient).To(Equal(2))
+		Expect(*simple.Status.Remainder).To(Equal(0))
+	})
+	It("Failes to divide with zero", func() {
+		simpleName := CreateSimple(namespace, testv1.SimpleSpec{Divident: 10, Divisor: 0})
+		DeferCleanup(DeleteSimple, simpleName)
+
+		ExpectSimpleStatusDivisonByZero(simpleName)
 	})
 })

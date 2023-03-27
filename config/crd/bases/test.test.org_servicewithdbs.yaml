@@ -5,20 +5,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.10.0
   creationTimestamp: null
-  name: simples.test.test.org
+  name: servicewithdbs.test.test.org
 spec:
   group: test.test.org
   names:
-    kind: Simple
-    listKind: SimpleList
-    plural: simples
-    singular: simple
+    kind: ServiceWithDB
+    listKind: ServiceWithDBList
+    plural: servicewithdbs
+    singular: servicewithdb
   scope: Namespaced
   versions:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: Simple is the Schema for the simples API
+        description: ServiceWithDB is the Schema for the servicewithdbs API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,23 +33,35 @@ spec:
           metadata:
             type: object
           spec:
-            description: SimpleSpec defines the desired state of Simple
+            description: ServiceWithDBSpec defines the desired state of ServiceWithDB
             properties:
-              divident:
-                description: Divident
-                type: integer
-              divisor:
-                description: Divisor
+              containerImage:
+                description: The service specific Container Image URL
+                type: string
+              customServiceConfig:
+                description: CustomServiceConfig
+                type: string
+              databaseInstance:
+                description: DatabaseInstance is the name of the MariaDB CR to select
+                  the DB Service instance used
+                type: string
+              replicas:
+                default: 1
+                description: Replicas of the service to run
+                format: int32
+                maximum: 32
+                minimum: 0
                 type: integer
             required:
-            - divident
-            - divisor
+            - containerImage
+            - databaseInstance
             type: object
           status:
-            description: SimpleStatus defines the observed state of Simple
+            description: ServiceWithDBStatus defines the observed state of ServiceWithDB
             properties:
               conditions:
-                description: Conditions
+                description: 'Important: Run "make" to regenerate code after modifying
+                  this file Conditions'
                 items:
                   description: Condition defines an observation of a API resource
                     operational state.
@@ -91,12 +103,6 @@ spec:
                   - type
                   type: object
                 type: array
-              quotient:
-                description: Quotient
-                type: integer
-              remainder:
-                description: Remainder
-                type: integer
             type: object
         type: object
     served: true

@@ -8,6 +8,32 @@ rules:
 - apiGroups:
   - test.test.org
   resources:
+  - servicewithdbs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - test.test.org
+  resources:
+  - servicewithdbs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - test.test.org
+  resources:
+  - servicewithdbs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - test.test.org
+  resources:
   - simples
   verbs:
   - create
