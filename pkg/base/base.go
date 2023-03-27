@@ -1,9 +1,8 @@
-package controllers
+package base
 
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -112,58 +111,22 @@ func readInstance[T client.Object](r *ReconcileReq[T]) Result {
 	err := r.Client.Get(r.Ctx, r.Request.NamespacedName, r.Instance)
 	if err != nil {
 		r.Log.Info("Failed to read instance, probably deleted. Nothing to do.", "client error", err)
-		return r.error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
+		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
 	}
-	return r.ok()
+	return r.OK()
 }
 
 func handleDeleted[T client.Object](r *ReconcileReq[T]) Result {
 	if !r.Instance.GetDeletionTimestamp().IsZero() {
-		return r.error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
+		return r.Error(fmt.Errorf("not and error, instance deleted and cleaned. Refactor to handle stop iterating steps without error"))
 	}
-	return r.ok()
+	return r.OK()
 }
 
 func saveInstance[T client.Object](r *ReconcileReq[T]) Result {
 	err := r.Client.Status().Update(r.Ctx, r.Instance)
 	if err != nil {
-		return r.error(err)
+		return r.Error(err)
 	}
-	return r.ok()
-}
-
-type Result struct {
-	ctrl.Result
-	err error
-}
-
-var resultOK = Result{Result: ctrl.Result{}, err: nil}
-
-func (r Result) String() string {
-	if r.err != nil {
-		return fmt.Sprintf("Reconciliation failed: %v", r.err)
-	}
-	if r.Requeue {
-		return fmt.Sprintf("Reconciliation requeued after %v", r.RequeueAfter)
-	}
-	return "Reconciliation succeded"
-}
-
-func (r Result) Unwrap() (ctrl.Result, error) {
-	return r.Result, r.err
-}
-
-func (r *ReconcileReq[T]) ok() Result {
-	return resultOK
-}
-
-func (r *ReconcileReq[T]) error(err error) Result {
-	return Result{Result: ctrl.Result{}, err: err}
-}
-
-func (r *ReconcileReq[T]) requeue(after *time.Duration) Result {
-	if after != nil {
-		return Result{Result: ctrl.Result{RequeueAfter: *after}, err: nil}
-	}
-	return Result{Result: ctrl.Result{Requeue: true}, err: nil}
+	return r.OK()
 }

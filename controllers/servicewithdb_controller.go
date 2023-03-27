@@ -47,7 +47,7 @@ type ServiceWithDBReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *ServiceWithDBReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	//return NewServiceWithDBReconcileReq(ctx, req, r.Client).Handle()
-	return resultOK.Unwrap()
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

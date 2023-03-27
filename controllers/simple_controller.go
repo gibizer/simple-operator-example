@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	testv1beta1 "github.com/gibizer/test-operator/api/v1beta1"
+	"github.com/gibizer/test-operator/pkg/base"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 )
 
@@ -41,9 +42,9 @@ type SimpleReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *SimpleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	return NewReconcileReqHandler(
+	return base.NewReconcileReqHandler(
 		ctx, req, r.Client, &testv1beta1.Simple{},
-		[]Step[*testv1beta1.Simple, ReconcileReq[*testv1beta1.Simple]]{
+		[]base.Step[*testv1beta1.Simple, base.ReconcileReq[*testv1beta1.Simple]]{
 			{Name: "Init status", Do: initStatus},
 			{Name: "Ensure non-zero divisor", Do: ensureNonZeroDivisor},
 			{Name: "Divide", Do: divide},
@@ -58,24 +59,24 @@ func (r *SimpleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func initStatus(r *ReconcileReq[*testv1beta1.Simple]) Result {
+func initStatus(r *base.ReconcileReq[*testv1beta1.Simple]) base.Result {
 	r.Instance.Status.Conditions.Init(&condition.Conditions{})
-	return r.ok()
+	return r.OK()
 }
 
-func ensureNonZeroDivisor(r *ReconcileReq[*testv1beta1.Simple]) Result {
+func ensureNonZeroDivisor(r *base.ReconcileReq[*testv1beta1.Simple]) base.Result {
 	if r.Instance.Spec.Divisor == 0 {
 		r.Instance.Status.Conditions.MarkFalse(condition.ReadyCondition, condition.ErrorReason, condition.SeverityError, "division by zero")
-		return r.error(fmt.Errorf("division by zero"))
+		return r.Error(fmt.Errorf("division by zero"))
 	}
-	return r.ok()
+	return r.OK()
 }
 
-func divide(r *ReconcileReq[*testv1beta1.Simple]) Result {
+func divide(r *base.ReconcileReq[*testv1beta1.Simple]) base.Result {
 	quotient := r.Instance.Spec.Divident / r.Instance.Spec.Divisor
 	remainder := r.Instance.Spec.Divident % r.Instance.Spec.Divisor
 	r.Instance.Status.Quotient = &quotient
 	r.Instance.Status.Remainder = &remainder
 	r.Instance.Status.Conditions.MarkTrue(condition.ReadyCondition, "calculation done")
-	return r.ok()
+	return r.OK()
 }
